@@ -64,6 +64,7 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 │               └── apache_redirect.sh.tmpl # 起動・同期スクリプト
 └── README.md
 
+```
 
 ---
 ## 詳細技術データ
