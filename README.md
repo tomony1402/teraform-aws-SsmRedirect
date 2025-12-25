@@ -63,3 +63,38 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 │           └── userdata/
 │               └── apache_redirect.sh.tmpl # 起動・同期スクリプト
 └── README.md
+
+
+---
+## 詳細技術データ
+
+<details> 
+<summary>🔍 Terraform での AMI 取得コード</summary> 
+
+```hcl
+data "aws_ami" "almalinux" {
+  most_recent = true
+  owners      = ["764336703387"] # AlmaLinux OS Foundation
+
+  filter {
+    name   = "name"
+    values = ["AlmaLinux OS 9*"]
+  }
+
+  filter {
+    name   = "architecture"
+    values = ["x86_64"]
+  }
+
+  filter {
+    name   = "root-device-type"
+    values = ["ebs"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+```
+</details>
