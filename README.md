@@ -99,3 +99,19 @@ data "aws_ami" "almalinux" {
 }
 ```
 </details>
+
+<details> 
+<summary>💻 全リージョンの AMI 存在確認コマンド（AWS CLI）</summary>
+
+```bash
+for r in $(aws ec2 describe-regions --query "Regions[].RegionName" --output text); do
+  count=$(aws ec2 describe-images \
+    --region "$r" \
+    --owners 764336703387 \
+    --filters "Name=name,Values=AlmaLinux OS 9*" \
+    --query "length(Images)" \
+    --output text)
+  printf "%-20s : %s\n" "$r" "$count"
+done
+```
+</details>
