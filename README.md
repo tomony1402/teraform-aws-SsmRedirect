@@ -354,17 +354,17 @@ chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
 
 ```text
 .
-├── main.tf
-├── output.tf
-├── .terraform.lock.hcl
-├── modules
-│   └── redirect_ec2
-│       ├── main.tf
-│       ├── variables.tf
-│       ├── outputs.tf
-│       └── userdata
-│           └── apache_redirect.sh.tmpl
-
-
-
+├── 00_ssm_base             # 東京リージョン：SSMパラメータ（本尊）管理
+│   └── main.tf
+├── 01_redirect_compute      # ムンバイリージョン：リダイレクトサーバー群
+│   ├── main.tf             # ネットワークおよびSSMパラメータ取得
+│   ├── modules/            # EC2インスタンスのモジュール化
+│   │   └── redirect_ec2/
+│   │       ├── main.tf
+│   │       ├── outputs.tf
+│   │       ├── variables.tf
+│   │       └── userdata/
+│   │           └── apache_redirect.sh.tmpl # 起動時に設定注入
+│   └── output.tf
+└── README.md
 
