@@ -1,0 +1,47 @@
+#!/bin/bash
+set -eux
+# AWS CLI がない場合はインストールする
+yum install -y awscli
+
+# 1. AWS CLI を使って SSM からリダイレクト先を取得
+ID="${target_id}"            # kensho1
+FALLBACK="${fallback_domain}" # tune-snowboarding.com
+SSM_REGION="ap-northeast-1" 
+
+# SSM Parameter Store から値を取得（名前の例: /redirect/kensho1/url）
+# 取得に失敗した場合の予備（フォールバック）として、元のドメイン名も保持
+SSM_VALUE=$(aws ssm get-parameter --name "/redirect/$ID/url" --query "Parameter.Value" --output text --region $SSM_REGION 2>/dev/null || echo "")
+
+if [ -n "$SSM_VALUE" ]; then
+    TARGET_URL="$SSM_VALUE"
+else
+    TARGET_URL="$FALLBACK"
+fi
+
+# 2. Apache のインストールと設定
+#yum update -y
+yum install -y httpd
+
+systemctl enable httpd
+systemctl start httpd
+
+if ! grep -q "^Listen 8080" /etc/httpd/conf/httpd.conf; then
+  echo "Listen 8080" >> /etc/httpd/conf/httpd.conf
+fi
+
+# 3. 取得した $TARGET_URL を使って設定ファイルを生成
+cat > /etc/httpd/conf.d/redirect.conf << EOL
+<VirtualHost *:80>
+    Redirect permanent / http://$TARGET_URL/
+</VirtualHost>
+
+<VirtualHost *:8080>
+    Redirect permanent / http://$TARGET_URL/
+</VirtualHost>
+EOL
+
+systemctl restart httpd
+
+# 自分自身を「再起動のたび」に実行されるフォルダにコピーする
+cp "$0" /var/lib/cloud/scripts/per-boot/redirect_sync.sh
+chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
