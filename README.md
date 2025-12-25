@@ -1,390 +1,65 @@
-Terraform configuration for deploying ultra low-cost Apache-based redirect EC2 instances
-using AlmaLinux, supporting all AWS regions.
+# Terraform for Ultra Low-Cost Apache Redirect EC2 (Multi-Region)
 
-# Apache Redirect on EC2 (Terraform)
-
-このリポジトリは、Terraform を使って  
-Apache によるリダイレクト設定を行った EC2 を構築するためのものです。  
-各 EC2 には IAM ロールを付与し、AWS Systems Manager (SSM) での管理を前提としています。
-
-HCP Terraform は使用せず、ローカル実行前提で運用します。
+Terraform を用いて、AlmaLinux 9 ベースの超低コストなリダイレクト専用 EC2 インスタンスを AWS 全リージョンへ展開するための構成です。
+AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全リモート管理」を実現しています。
 
 ---
 
-## この Terraform でやっていること
+## 🎯 プロジェクトの核心
 
-- AWS 上に EC2 を 18台作成する
-- Apache をインストールし、リダイレクト設定を行う
-- IAM インスタンスプロフィールを付与し、SSM 管理を有効化する
-- EC2 作成処理は `modules/redirect_ec2` に切り出している
-- SSH 接続用のキーペアを Terraform で生成する
+- **超低コスト展開**: Amazon Linux では不可能な「EBS 10GB」構成を AlmaLinux で実現。
+- **SSM 集中管理**: 東京リージョンを「本尊」とし、世界中のインスタンス設定を一括制御。
+- **Local IaC**: HCP Terraform に依存せず、ローカル実行で完結する確実なプロビジョニング。
 
 ---
-
-## main.tf について
-
-`main.tf` は、この Terraform 構成全体のエントリーポイントです。
-
-このファイルでは、使用する AWS Provider の設定を行い、  
-Terraform で生成した SSH 用キーペアを利用できるようにした上で、  
-EC2 の作成処理を `modules/redirect_ec2` モジュールに委譲しています。
-
-個々のリソースの詳細設定は持たず、  
-全体の流れと役割の定義のみを担っています。
-
----
-# Redirect EC2 (Low Cost / Multi-Region)
-
-Terraform で **低コストなリダイレクト専用 EC2** を  
-**複数リージョン対応**で作成する構成。
-
-最小構成（t2.nano + 最小EBS）を前提とし、  
-AMI は **リージョン依存を吸収する設計**にしている。
-
----
-
-## 構成概要
-
-- OS: **AlmaLinux 9**
-- Instance Type: **t2.nano**
-- Root Volume: **10GB or 20GB (gp3)**
-- 用途: Apache による HTTP リダイレクト
-- デプロイ方式: Terraform
-- 対応リージョン: **全リージョン**
-
----
-
-## 設計方針
-
-### なぜ AlmaLinux？
-- Amazon Linux 2023 は **ルートボリューム最小 30GB**
-- 20GB / 10GB に縮小できない
-- **AlmaLinux は最小 8〜10GB の AMI が存在**
-
-→ **EBS サイズを下げてコスト削減するため AlmaLinux を採用**
-
----
-
-## AMI（全リージョン対応）
-
-AMI ID はリージョンごとに異なるため、  
-**ID を固定せず検索条件で取得**する。
-
-<details>
-<summary>🔍 Terraform での AMI 取得コードを表示</summary>
-
-```hcl
-data "aws_ami" "almalinux" {
-  most_recent = true
-  owners      = ["764336703387"] # AlmaLinux OS Foundation
-
-  filter {
-    name   = "name"
-    values = ["AlmaLinux OS 9*"]
-  }
-
-  filter {
-    name   = "architecture"
-    values = ["x86_64"]
-  }
-
-  filter {
-    name   = "root-device-type"
-    values = ["ebs"]
-  }
-
-  filter {
-    name   = "virtualization-type"
-    values = ["hvm"]
-  }
-}
-```
-</details>
-
----
-
-## EC2定義
-
-<details>
-<summary>🛠️ EC2 作成の Terraform コードを表示</summary>
-
-```hcl
-
-data "aws_region" "current" {}
-
-resource "aws_instance" "web" {
-  for_each = local.redirect_domains
-
-  # ★ AMI を AlmaLinux に変更
-  ami           = data.aws_ami.almalinux.id
-  instance_type = "t2.nano"
-  key_name      = var.key_name
-
-  iam_instance_profile = "ec2-ssm-kondo"
-  associate_public_ip_address = true
-
-  vpc_security_group_ids = [
-    aws_security_group.redirect.id
-  ]
-
-  # ★ 20GB にできる
-  root_block_device {
-    volume_size = 10
-    volume_type = "gp3"
-  }
-
-   user_data = templatefile(
-    "${path.module}/userdata/apache_redirect.sh.tmpl",
-    {
-      # each.value（ドメイン名）ではなく、each.key（kensho1, kensho2など）を渡す
-      target_id       = each.key    # "kensho1" など
-      fallback_domain = each.value  # "tune-snowboarding.com" など
-      region          = data.aws_region.current.name
-    }
-  )
-
-  tags = {
-    Name = each.key
-  }
-}
-
-```
-
-</details>
-
-### 全リージョン対応確認（AWS CLI）
-
-<details> 
-<summary>💻 全リージョンの AMI 存在確認コマンド（AWS CLI）</summary>
-
-```bash
-for r in $(aws ec2 describe-regions --query "Regions[].RegionName" --output text); do
-  count=$(aws ec2 describe-images \
-    --region "$r" \
-    --owners 764336703387 \
-    --filters "Name=name,Values=AlmaLinux OS 9*" \
-              "Name=architecture,Values=x86_64" \
-    --query "length(Images)" \
-    --output text)
-  printf "%-20s : %s\n" "$r" "$count"
-done
-
-```
-</details>
-
-## AlmaLinux サポート期間
-
-本構成では AlmaLinux 9 を使用している。
-
-- AlmaLinux 9
-  - フルサポート：～ 2027 年
-  - セキュリティ更新：～ 2032 年
-
-RHEL と同等のライフサイクルを持ち、
-長期運用を前提とした構成に適している。
-
-## 料金目安（無料枠外・東京）
-
-以下は **ap-northeast-1（東京リージョン）**  
-**オンデマンド / 月720時間稼働**を想定した概算。
-
-### EC2 インスタンス
-
-| インスタンスタイプ | 月額目安 |
-|------------------|----------|
-| t2.nano | 約 600〜700円 |
-| t3.micro | 約 1,400円 |
-
----
-
-### EBS（gp3）
-
-| サイズ | 月額目安 |
-|------|----------|
-| 10GB | 約 120円 |
-| 20GB | 約 240円 |
-| 30GB | 約 360円 |
-
----
-
-### 構成別 合計
-
-| 構成 | 月額目安 |
-|---|---|
-| t2.nano + 10GB | 約 **720〜820円** |
-| t2.nano + 20GB | 約 **850〜950円** |
-| t3.micro + 20GB | 約 **1,640円** |
-
-※ 為替レート（約150円/USD）により多少前後する  
-※ OS（Amazon Linux / AlmaLinux）による料金差はなし
-
----
-
-## 🔐 IAM 権限の設定  
-
-本プロジェクトでは、EC2 が SSM Parameter Store から安全に設定を取得するため、以下の 2 つのポリシーを定義しています。  
-
-### 1. EC2 用ロール（ec2-ssm-kondo）の作成
-本プロジェクトでは、EC2 インスタンスが SSM Parameter Store から安全に設定情報を取得するために、専用の IAM ロール **`ec2-ssm-kondo`** を作成しています。  
-
-このロールをインスタンスに付与することで、インスタンス自身が AWS サービス（SSM）に対して、許可された範囲内でのデータ取得リクエストを行えるようになります。  
-
-### 2. 作業ユーザーへの譲渡権限付与（iam:PassRole）
-Terraform 等で EC2 を作成し、そこに上記ロールを紐付ける（パスする）ための権限です。実行ユーザー側にこの許可がないと、作成した `ec2-ssm-kondo` ロールをインスタンスへ付与することができないため、セキュリティ上の重要な設定となります。
-
-<details>
-<summary>JSONポリシーの中身を確認する</summary>
-
-```json
-{
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Effect": "Allow",
-			"Action": "iam:PassRole",
-			"Resource": "arn:aws:iam::276164042029:role/ec2-ssm-kondo"
-		}
-	]
-}
-```
-</details>
-
-### 3. ロールへの許可ポリシー設定（ssm:GetParameter）
-作成した `ec2-ssm-kondo` ロールに対し、以下のポリシーをアタッチします。これにより、ロールを付与された EC2 は、SSM 内の `/redirect/` パス以下にあるデータのみをピンポイントで取得できるようになります（最小権限の原則）。
-
-<details>
-<summary>JSONポリシーの中身を確認する</summary>
-
-```json
-{
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Effect": "Allow",
-			"Action": [
-				"ssm:GetParameter",
-				"ssm:GetParameters"
-			],
-			"Resource": "arn:aws:ssm:ap-northeast-1:276164042029:parameter/redirect/*"
-		}
-	]
-}
-```
-
-</details>
-
----
-
-## 🚀 自動セットアップ（User Data / SSM Integration）
-
-本プロジェクトの核となる「設定の外部注入」と「自動プロビジョニング」の仕組みです。
-EC2 の初回起動時および **再起動時** に実行され、インフラ（AWS）と OS 内部（Apache）を動的に繋ぎ込みます。
 
 ## 🛠️ 技術的なポイントと設計思想
 
-本プロジェクトでは、単なる構築に留まらず、実運用におけるコスト・安定性・管理効率を極限まで高めるための設計を採用しています。
-
 ### 1. パフォーマンス最適化と起動速度の死守
 - **yum update の制限**
-    - **背景**: 当初は `yum update -y` を検討したが、t2.nano 環境では最新リポジトリのパッケージ肥大化により CPU/メモリ負荷が激増し、プロビジョニングに膨大な時間を要することを確認。
-    - **解決**: 起動速度を最優先し、更新を必要最小限（`httpd`, `awscli`）に絞り込むことで、AWS ステータスチェックのタイムアウト（1/2 起動遅延）を回避。安定した **「ステータスチェック 2/2 合格」** を確実に達成する設計としました。
+    - **判断**: 当初は `yum update -y` を検討したが、t2.nano 環境では最新リポジトリのパッケージ肥大化により負荷が激増し、プロビジョニングに膨大な時間を要することを確認。
+    - **解決**: 起動速度を最優先し、更新を必要最小限（`httpd`, `awscli`）に絞り込むことで、AWS ステータスチェックのタイムアウト（1/2 起動遅延）を回避。安定した **「ステータスチェック 2/2 合格」** を確実に達成しました。
 
 ### 2. SSM 集中管理（00_ssm_base による「本尊」設計）
 - **一元管理（SSM 本尊）**
-    - 全リージョンの EC2 が参照する設定値（リダイレクト先 URL 等）を、**東京リージョン（ap-northeast-1）** の SSM Parameter Store に集約しています。
+    - 全リージョンの設定値（リダイレクト先 URL 等）を、**東京リージョン（ap-northeast-1）** の SSM Parameter Store に集約。
 - **疎結合なディレクトリ構成**
     - `00_ssm_base`: 設定（本尊）の管理
     - `01_redirect_compute`: 計算リソース（実体）の管理
 - **運用の利点**
-    - インフラ構成を変更することなく、東京の SSM を書き換えて EC2 を再起動（または SSM Automation による一斉ランブック実行）するだけで、世界中の拠点の挙動を一括制御できる柔軟性を確保しました。
+    - インフラ構成を変更せず、東京の SSM を書き換えて EC2 を再起動（または SSM Automation 一斉実行）するだけで、グローバルな挙動を一括制御できます。
 
 ### 3. 再起動耐性と動的同期（Self-Persistence）
 - **Cloud-init / per-boot の活用**
-    - UserData 内で実行スクリプト自身を `/var/lib/cloud/scripts/per-boot/` へコピーする処理を実装。
-    - インスタンスが再起動するたびに「本尊」から最新の設定をプルし直すため、常に最新の状態が適用される「自己更新型」のインスタンスとして動作します。
+    - UserData 内でスクリプト自身を `/var/lib/cloud/scripts/per-boot/` へコピー。
+    - インスタンス再起動のたびに「本尊」から最新設定をプルし直すため、常に最新状態が維持される「自己更新型」として動作します。
 - **フォールバック設計**
-    - 万が一、SSM からの値取得に失敗した場合でも、Terraform 側で定義したデフォルト値（ドメイン名）を採用し、サービスダウンを防ぐ二段構えの設計です。
-
-### 4. ネットワーク・待機設定
-- **デュアルポート待機**
-    - 標準ポート（80）に加え、運用要件に基づき 8080 ポートでのリダイレクト処理にも標準で対応しています。
-
-<details> 
-<summary>📄 セットアップスクリプト（apache_redirect.sh.tmpl）を表示</summary>  
-
-```bash
-#!/bin/bash
-set -eux
-# AWS CLI がない場合はインストールする
-yum install -y awscli
-
-# 1. AWS CLI を使って SSM からリダイレクト先を取得
-ID="${target_id}"            # kensho1
-FALLBACK="${fallback_domain}" # tune-snowboarding.com
-REGION="${region}"
-
-# SSM Parameter Store から値を取得（名前の例: /redirect/kensho1/url）
-# 取得に失敗した場合の予備（フォールバック）として、元のドメイン名も保持
-SSM_VALUE=$(aws ssm get-parameter --name "/redirect/$ID/url" --query "Parameter.Value" --output text --region $REGION || echo "")
-
-if [ -n "$SSM_VALUE" ]; then
-    TARGET_URL="$SSM_VALUE"
-else
-    TARGET_URL="$FALLBACK"
-fi
-
-# 2. Apache のインストールと設定
-yum update -y
-yum install -y httpd
-
-systemctl enable httpd
-systemctl start httpd
-
-if ! grep -q "^Listen 8080" /etc/httpd/conf/httpd.conf; then
-  echo "Listen 8080" >> /etc/httpd/conf/httpd.conf
-fi
-
-# 3. 取得した $TARGET_URL を使って設定ファイルを生成
-cat > /etc/httpd/conf.d/redirect.conf << EOL
-<VirtualHost *:80>
-    Redirect permanent / http://$TARGET_URL/
-</VirtualHost>
-
-<VirtualHost *:8080>
-    Redirect permanent / http://$TARGET_URL/
-</VirtualHost>
-EOL
-
-systemctl restart httpd
-
-# 自分自身を「再起動のたび」に実行されるフォルダにコピーする
-cp "$0" /var/lib/cloud/scripts/per-boot/redirect_sync.sh
-chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
-
-```
-
-
-
-</details>
+    - SSM 取得失敗時も、Terraform 定義のデフォルト値を採用し、サービスダウンを絶対に防ぐ二段構えです。
 
 ---
 
+## 🏗️ 構成概要
 
-## ディレクトリ構成
+- **OS**: AlmaLinux 9 (Amazon Linux 2023 の EBS 30GB 制約を回避するため採用)
+- **Instance Type**: t2.nano (月額 約600~700円)
+- **Root Volume**: 10GB (gp3) (月額 約120円)
+- **対応リージョン**: AWS 全リージョン（AMI ID を固定せず動的検索で取得）
+
+---
+
+## 📂 ディレクトリ構成
 
 ```text
 .
-├── 00_ssm_base             # 東京リージョン：SSMパラメータ（本尊）管理
+├── 00_ssm_base             # 東京リージョン：設定値（本尊）を一括管理
 │   └── main.tf
-├── 01_redirect_compute      # ムンバイリージョン：リダイレクトサーバー群
-│   ├── main.tf             # ネットワークおよびSSMパラメータ取得
-│   ├── modules/            # EC2インスタンスのモジュール化
-│   │   └── redirect_ec2/
-│   │       ├── main.tf
-│   │       ├── outputs.tf
-│   │       ├── variables.tf
-│   │       └── userdata/
-│   │           └── apache_redirect.sh.tmpl # 起動時に設定注入
-│   └── output.tf
+├── 01_redirect_compute      # 展開先リージョン：計算資源の実体
+│   ├── main.tf             # NW構成・SSM連携
+│   ├── output.tf
+│   └── modules/
+│       └── redirect_ec2/    # EC2 インスタンスモジュール
+│           ├── main.tf
+│           ├── variables.tf
+│           └── userdata/
+│               └── apache_redirect.sh.tmpl # 起動・同期スクリプト
 └── README.md
-
