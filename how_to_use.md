@@ -61,3 +61,24 @@ locals {
 - 削除: 該当行をコメントアウトして terraform apply  
 
 - 制限: 一部リージョンではリソース制限があるため、3〜6台ずつ の作成を推奨します。  
+
+
+## 🚀 ③ 実行コマンド
+
+`01_redirect_compute` ディレクトリにて以下のコマンドを順に実行します。
+
+1. **初期化**
+   ```bash
+   terraform init
+   ```
+
+2. **実行計画の確認**
+   ```bash
+   terraform plan
+   ```
+
+3. **反映**
+   ```bash
+   terraform apply
+   ```
+
