@@ -346,7 +346,7 @@ chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
 </details>
 
 
-### 🛠️ 4. 品質管理 (CI)
+### 4. 品質管理 (CI)
 
 本プロジェクトでは、GitHub Actions を利用した CI（継続的インテグレーション）を導入し、インフラコードの信頼性を担保しています。
 
