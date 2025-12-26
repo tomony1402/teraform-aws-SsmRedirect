@@ -248,30 +248,28 @@ done
 resource "aws_instance" "web" {
   for_each = local.redirect_domains
 
-  # ★ AMI を AlmaLinux に変更
+  # AMI の動的取得と最小スペックの選択
   ami           = data.aws_ami.almalinux.id
   instance_type = "t2.nano"
   key_name      = var.key_name
 
-  iam_instance_profile = "ec2-ssm-kondo"
+  # 権限とネットワーク設定
+  iam_instance_profile        = "ec2-ssm-kondo"
   associate_public_ip_address = true
+  vpc_security_group_ids      = [aws_security_group.redirect.id]
 
-  vpc_security_group_ids = [
-    aws_security_group.redirect.id
-  ]
-
-  # ★ 20GB にできる
+  # ルートボリュームの設定
   root_block_device {
     volume_size = 10
     volume_type = "gp3"
   }
 
-   user_data = templatefile(
+  # インスタンスごとの固有設定を UserData に注入
+  user_data = templatefile(
     "${path.module}/userdata/apache_redirect.sh.tmpl",
     {
-      # each.value（ドメイン名）ではなく、each.key（kensho1, kensho2など）を渡す
-      target_id       = each.key    # "kensho1" など
-      fallback_domain = each.value  # "tune-snowboarding.com" など
+      target_id       = each.key    # "kensho1" などの識別子
+      fallback_domain = each.value  # "tune-snowboarding.com" などの実ドメイン
       region          = data.aws_region.current.name
     }
   )
