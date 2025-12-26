@@ -88,3 +88,12 @@ locals {
    terraform apply
    ```
 
+---
+
+## 🧹 ④ 不要リソースの削除
+`01_redirect_compute` ディレクトリにて以下のコマンドを順に実行します。  
+別のリージョンへ移行した場合など、前回作成したリソースが不要になった際は必ず削除してください。 
+
+   ```bash
+   terraform destroy
+   ```
