@@ -231,3 +231,45 @@ for r in $(aws ec2 describe-regions --query "Regions[].RegionName" --output text
 done
 ```
 </details>
+
+### 🏗️ 3. EC2 インスタンスの量産と自動設定 (IaC & UserData)
+
+これまでに定義した「権限」「鍵」「AMI」を組み合わせ、実際のサービス基盤を自動構築するメインロジックです。
+
+<details>
+<summary>🔄 for_each による EC2 の動的量産ロジック</summary>
+
+単一のコードブロックで、定義されたドメインの数だけインスタンスを自動生成する仕組みです。
+
+- **DRY原則の徹底**: `local.redirect_domains` というマップ（変数）を書き換えるだけで、サーバーの増減が可能。
+- **動的な紐付け**: `each.key` を活用し、インスタンス名、タグ、UserDataの中身を個別に自動設定します。
+
+```hcl
+resource "aws_instance" "web" {
+  # マップの数だけループ実行
+  for_each = local.redirect_domains 
+
+  ami           = data.aws_ami.almalinux.id
+  instance_type = "t2.nano"
+  key_name      = aws_key_pair.ssh.key_name
+  
+  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+
+  # インスタンスごとに固有の Name タグを付与
+  tags = {
+    Name = "ec2-${each.key}"
+  }
+
+  # インスタンスごとの固有設定を UserData に注入
+  user_data = templatefile(
+    "${path.module}/userdata/apache_redirect.sh.tmpl",
+    { 
+      target_id = each.key,
+      region    = "ap-northeast-1"
+    }
+  )
+}
+
+```
+
+</details>
