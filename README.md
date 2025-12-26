@@ -344,3 +344,54 @@ chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
 ```
 
 </details>
+
+
+### 🛠️ 4. 品質管理 (CI)
+
+本プロジェクトでは、GitHub Actions を利用した CI（継続的インテグレーション）を導入し、インフラコードの信頼性を担保しています。
+
+<details>
+<summary>🤖 GitHub Actions による自動構文チェック</summary>
+
+コードがリポジトリに Push または Pull Request されたタイミングで、以下の検証プロセスが自動的に実行されます。
+
+- **階層別自動検証**: `00_ssm_base`（本尊）および `01_redirect_compute`（計算資源）の各ディレクトリへ自動で移動し、独立して検証を実行。
+- **プラグイン整合性確認**: 必要な AWS Provider 等のプラグインが正しく読み込めるかを `terraform init -backend=false` で検証。
+- **厳格な構文チェック**: `terraform validate` により、カッコの閉じ忘れ、変数の定義漏れ、タイポなどを厳格に検出。
+- **Green Build の維持**: GitHub 上で「第3者の目」としてチェックを行い、**緑のチェック（✅）** が付くことで、常にデプロイ可能な品質であることを証明します。
+
+#### 📄 terraform-ci.yml (ワークフロー定義)
+```yaml
+name: "Terraform CI"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Validate SSM Base
+        run: |
+          cd 00_ssm_base
+          terraform init -backend=false
+          terraform validate
+
+      - name: Validate Redirect Compute
+        run: |
+          cd 01_redirect_compute
+          terraform init -backend=false
+          terraform validate
+
+```
+
+</details>
