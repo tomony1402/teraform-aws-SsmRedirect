@@ -282,3 +282,63 @@ resource "aws_instance" "web" {
 ```
 
 </details>
+
+<details>
+<summary>💻 UserData による Apache 自動設定スクリプト</summary>
+
+Terraform から注入された変数を利用し、OS起動時に最新のパラメータを反映させるためのテンプレートファイル（`.sh.tmpl`）の内容です。
+
+- **変数の埋め込み**: `${target_id}` や `${region}` は、Terraform の `templatefile` 関数によって実行時に実際の値へ置換されます。
+- **動的な設定生成**: 取得したリダイレクト先 URL に基づき、Apache の `VirtualHost` 設定をその場で書き出します。
+
+#### 📄 apache_redirect.sh.tmpl (抜粋)
+
+```bash
+#!/bin/bash
+set -eux
+
+# AWS CLI がない場合はインストールする
+yum install -y awscli
+
+# 1. AWS CLI を使って SSM からリダイレクト先を取得
+ID="${target_id}"            # Terraformから注入 (例: kensho1)
+FALLBACK="${fallback_domain}" # Terraformから注入 (例: tune-snowboarding.com)
+SSM_REGION="${region}"
+
+# SSM Parameter Store から値を取得
+SSM_VALUE=$(aws ssm get-parameter --name "/redirect/$ID/url" --query "Parameter.Value" --output text --region $SSM_REGION 2>/dev/null || echo "")
+
+if [ -n "$SSM_VALUE" ]; then
+    TARGET_URL="$SSM_VALUE"
+else
+    TARGET_URL="$FALLBACK"
+fi
+
+# 2. Apache のインストールと設定
+yum install -y httpd
+systemctl enable --now httpd
+
+# 複数ポート(8080)の待ち受け設定
+if ! grep -q "^Listen 8080" /etc/httpd/conf/httpd.conf; then
+  echo "Listen 8080" >> /etc/httpd/conf/httpd.conf
+fi
+
+# 3. 取得した $TARGET_URL を使って設定ファイルを生成
+cat > /etc/httpd/conf.d/redirect.conf << EOL
+<VirtualHost *:80>
+    Redirect permanent / http://\$TARGET_URL/
+</VirtualHost>
+
+<VirtualHost *:8080>
+    Redirect permanent / http://\$TARGET_URL/
+</VirtualHost>
+EOL
+
+systemctl restart httpd
+
+# 自分自身を「再起動のたび」に実行されるフォルダにコピー（永続化）
+cp "\$0" /var/lib/cloud/scripts/per-boot/redirect_sync.sh
+chmod +x /var/lib/cloud/scripts/per-boot/redirect_sync.sh
+```
+
+</details>
