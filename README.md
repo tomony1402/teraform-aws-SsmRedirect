@@ -183,7 +183,7 @@ resource "aws_key_pair" "ssh" {
 
 ---
 
-### 🚀 2.自動構築とOS設定 (IaC & UserData)  
+### 🚀 2. AMI の自動検索ロジック (Dynamic AMI Discovery)
 
 <details> 
 <summary>🔍 Terraform での AMI 取得コード</summary> 
