@@ -73,7 +73,7 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 
 ---
 
-### 🛡️ 1. セキュリティと権限管理 (Security & IAM)
+### 1. セキュリティと権限管理 (Security & IAM)
 
 このプロジェクトでは、**「実行リソース（EC2）」**と**「操作ユーザー（IAM User）」**の両方に最小権限（Least Privilege）を適用しています。
 
@@ -183,7 +183,7 @@ resource "aws_key_pair" "ssh" {
 
 ---
 
-### 🚀 2. AMI の自動検索ロジック (Dynamic AMI Discovery)
+### 2. AMI の自動検索ロジック (Dynamic AMI Discovery)
 
 <details> 
 <summary>🔍 Terraform での AMI 取得コード</summary> 
@@ -232,7 +232,7 @@ done
 ```
 </details>
 
-### 🏗️ 3. EC2 インスタンスの量産と自動設定 (IaC & UserData)
+### 3. EC2 インスタンスの量産と自動設定 (IaC & UserData)
 
 これまでに定義した「権限」「鍵」「AMI」を組み合わせ、実際のサービス基盤を自動構築するメインロジックです。
 
