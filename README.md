@@ -69,23 +69,41 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 ---
 ## 詳細技術データ  
 
-### 💡 テクニカルコラム：なぜコードだけで公開鍵が登録されるのか？  
+プロジェクトを支える核心的な技術仕様と自動化の仕組みをまとめています。
 
-Terraformにおける `aws_key_pair` リソースの動作原理は、**「全自動のコピー＆ペースト」**です。  
+---
 
-#### 処理の3ステップ 
-1. **生成 (`tls_private_key`)**:  
-   Terraformが実行マシンのメモリ上でRSA鍵ペア（秘密鍵と公開鍵のテキストデータ）を生成します。 
-2. **橋渡し (`public_key = ...`)**:  
-   生成された公開鍵のテキストデータを `aws_key_pair` リソースへ変数として渡します。 
-3. **API実行 (`terraform apply`)**:   
-   AWSプロバイダーが AWS API（`ImportKeyPair`）を呼び出し、「このテキストを `tf-key` という名前で保存して」とリクエストを投げます。これにより、AWSコンソールの「キーペア」一覧に自動的に表示されるようになります。  
+### 🔐 セキュリティと権限管理 (Security & IAM)
 
-| 役割 | 担当リソース / エンティティ | 内容 |  
-| :--- | :--- | :--- |  
-| **鍵の製造** | `tls_private_key` | 秘密鍵・公開鍵のペアを生成 |  
-| **運搬係** | **Terraform (AWS Provider)** | 公開鍵をAWSの窓口（API）へ送信 |  
-| **保管庫** | **AWS (Key Pairs)** | 送られてきた公開鍵を保存・管理 |  
+<details>
+<summary>💡 テクニカルコラム：なぜコードだけで公開鍵が登録されるのか？</summary>
+
+Terraformにおける `aws_key_pair` リソースの動作原理は、**「全自動のコピー＆ペースト」**です。
+
+1. **生成 (`tls_private_key`)**: 実行マシンのメモリ上でRSA鍵ペア（秘密鍵と公開鍵）を生成します。
+2. **橋渡し (`public_key = ...`)**: 生成された公開鍵データを `aws_key_pair` リソースへ渡します。
+3. **API実行 (`terraform apply`)**: AWSプロバイダーが API（`ImportKeyPair`）を呼び出し、AWSコンソールの「キーペア」一覧へ自動登録します。
+
+| 役割 | 担当リソース | 内容 |
+| :--- | :--- | :--- |
+| **鍵の製造** | `tls_private_key` | 秘密鍵・公開鍵のペアを生成 |
+| **運搬係** | **Terraform (AWS)** | 公開鍵をAWSのAPI窓口へ送信 |
+| **保管庫** | **AWS (Key Pairs)** | 送られてきた公開鍵を保存・管理 |
+
+</details>
+
+<details>
+<summary>🛡️ IAM インスタンスプロファイルと権限ポリシー</summary>
+
+EC2に付与される `ec2-ssm-kondo` ロールの詳細設定です。SSM Parameter Store へのアクセスを最小権限に絞っています。
+
+- **対象パス**: `arn:aws:ssm:ap-northeast-1:*:parameter/redirect/*`
+- **アクション**: `ssm:GetParameter`, `ssm:GetParameters`
+</details>
+
+---
+
+### 🚀 自動構築とOS設定 (IaC & UserData)  
 
 <details> 
 <summary>🔍 Terraform での AMI 取得コード</summary> 
