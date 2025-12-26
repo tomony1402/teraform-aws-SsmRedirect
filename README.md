@@ -75,13 +75,16 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 
 ### 🛡️ 1. セキュリティと権限管理 (Security & IAM)
 
+このプロジェクトでは、**「実行リソース（EC2）」**と**「操作ユーザー（IAM User）」**の両方に最小権限（Least Privilege）を適用しています。
+
 <details>
-<summary>📋 IAM インスタンスプロファイルと権限ポリシー</summary>
+<summary>📋 IAM インスタンスプロファイルと権限ポリシーの詳細</summary>
 
-EC2 インスタンスが AWS サービスと安全に通信するための権限設計です。
+#### A. EC2 インスタンス側の権限
+EC2が起動時に、SSM Parameter Store からデータを安全に取得するための設定です。
 
-- **役割**: 東京リージョンの SSM Parameter Store からリダイレクト設定を取得。
-- **最小権限**: 特定のパス（`/redirect/*`）のみ読み取りを許可。
+- **役割**: 東京リージョンの SSM Parameter Store からリダイレクト設定を動的に取得。
+- **制限**: 特定のパス（`/redirect/*`）のみ読み取りを許可し、他のパラメータへのアクセスを遮断。
 
 ```hcl
 # インスタンスプロファイルの定義
@@ -91,6 +94,35 @@ resource "aws_iam_instance_profile" "ec2_profile" {
 }
 ```
 
+
+#### B. 操作ユーザー側の権限 (IAM Userへ直接付与)
+管理者がリソースを構築・管理するために必要な、作業者側の権限設定です。
+
+- **`iam:PassRole`**: 
+  作成した IAM ロール（`ec2-ssm-kondo`）を EC2 インスタンスに安全に紐付ける（受け渡す）ための必須権限です。
+- **`ssm:GetParameter*`**: 
+  管理者が SSM Parameter Store の値を直接確認したり、構築・デバッグ時に値を参照したりするために必要です。
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "iam:PassRole",
+      "Resource": "arn:aws:iam::276164042029:role/ec2-ssm-kondo"
+    },
+    {
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters"
+      ],
+      "Resource": "arn:aws:ssm:ap-northeast-1:276164042029:parameter/redirect/*"
+    }
+  ]
+}
+```
 </details>
 
 <details>
