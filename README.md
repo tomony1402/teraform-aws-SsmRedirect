@@ -246,28 +246,39 @@ done
 
 ```hcl
 resource "aws_instance" "web" {
-  # マップの数だけループ実行
-  for_each = local.redirect_domains 
+  for_each = local.redirect_domains
 
+  # ★ AMI を AlmaLinux に変更
   ami           = data.aws_ami.almalinux.id
   instance_type = "t2.nano"
-  key_name      = aws_key_pair.ssh.key_name
-  
-  iam_instance_profile = aws_iam_instance_profile.ec2_profile.name
+  key_name      = var.key_name
 
-  # インスタンスごとに固有の Name タグを付与
-  tags = {
-    Name = "ec2-${each.key}"
+  iam_instance_profile = "ec2-ssm-kondo"
+  associate_public_ip_address = true
+
+  vpc_security_group_ids = [
+    aws_security_group.redirect.id
+  ]
+
+  # ★ 20GB にできる
+  root_block_device {
+    volume_size = 10
+    volume_type = "gp3"
   }
 
-  # インスタンスごとの固有設定を UserData に注入
-  user_data = templatefile(
+   user_data = templatefile(
     "${path.module}/userdata/apache_redirect.sh.tmpl",
-    { 
-      target_id = each.key,
-      region    = "ap-northeast-1"
+    {
+      # each.value（ドメイン名）ではなく、each.key（kensho1, kensho2など）を渡す
+      target_id       = each.key    # "kensho1" など
+      fallback_domain = each.value  # "tune-snowboarding.com" など
+      region          = data.aws_region.current.name
     }
   )
+
+  tags = {
+    Name = each.key
+  }
 }
 
 ```
