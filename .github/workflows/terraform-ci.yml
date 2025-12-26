@@ -1,0 +1,31 @@
+name: "Terraform CI"
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  terraform-validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      # 00_ssm_base のチェック
+      - name: Validate SSM Base
+        run: |
+          cd 00_ssm_base
+          terraform init -backend=false
+          terraform validate
+
+      # 01_redirect_compute のチェック
+      - name: Validate Redirect Compute
+        run: |
+          cd 01_redirect_compute
+          terraform init -backend=false
+          terraform validate
