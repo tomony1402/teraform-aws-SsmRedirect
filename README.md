@@ -128,6 +128,8 @@ resource "aws_key_pair" "ssh" {
 
 </details>
 
+</details>
+
 <details>
 <summary>🛡️ IAM インスタンスプロファイルと権限ポリシー</summary>
 
