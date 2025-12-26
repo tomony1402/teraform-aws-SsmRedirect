@@ -79,6 +79,7 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 <summary>💡 テクニカルコラム：なぜコードだけで公開鍵が登録されるのか？</summary>
 
 Terraformにおける `aws_key_pair` リソースの動作原理は、**「全自動のコピー＆ペースト」**です。
+
 <details>
 <summary>1. **生成 (`tls_private_key`)**: 実行マシンのメモリ上でRSA鍵ペア（秘密鍵と公開鍵）を生成します。</summary>
 
@@ -89,9 +90,9 @@ resource "tls_private_key" "ssh" {
 }
 ```
 
-</details>
+ </details>
 
-<details>
+ <details>
 <summary>2. **橋渡し (public_key = ...)**: データの受け渡し</summary>
 
 手元で作った「公開鍵」のテキストデータを、AWS側のリソースへ「コピー＆ペースト」する工程です。
@@ -104,9 +105,9 @@ resource "aws_key_pair" "ssh" {
 }
 ```
 
-</details>
+ </details>
 
-<details>
+ <details>
 <summary>3. **API実行 (terraform apply)**: AWSへの登録完了</summary>
 
 「手元のデータ」が正式に「AWSのリソース」として命を吹き込まれる最終工程です。
@@ -126,7 +127,7 @@ resource "aws_key_pair" "ssh" {
 
 > **Point**: この一連の流れがあるからこそ、私たちはAWSコンソールを一度も開くことなく、安全かつ確実に鍵を管理できるのです。
 
-</details>
+ </details>
 
 </details>
 
