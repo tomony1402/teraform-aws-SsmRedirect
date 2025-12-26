@@ -81,12 +81,14 @@ AWS Systems Manager (SSM) を活用した「設定の外部注入」と「完全
 Terraformにおける `aws_key_pair` リソースの動作原理は、**「全自動のコピー＆ペースト」**です。
 <details>
 <summary>1. **生成 (`tls_private_key`)**: 実行マシンのメモリ上でRSA鍵ペア（秘密鍵と公開鍵）を生成します。</summary>
+
 ```hcl
-   resource "tls_private_key" "ssh" {
-     algorithm = "RSA"
-     rsa_bits  = 4096
-   }
+resource "tls_private_key" "ssh" {
+   algorithm = "RSA"
+   rsa_bits  = 4096
+}
 ```
+
 </details>
 2. **橋渡し (`public_key = ...`)**: 生成された公開鍵データを `aws_key_pair` リソースへ渡します。
 3. **API実行 (`terraform apply`)**: AWSプロバイダーが API（`ImportKeyPair`）を呼び出し、AWSコンソールの「キーペア」一覧へ自動登録します。
