@@ -305,7 +305,7 @@ yum install -y awscli
 # 1. AWS CLI を使って SSM からリダイレクト先を取得
 ID="${target_id}"            # Terraformから注入 (例: kensho1)
 FALLBACK="${fallback_domain}" # Terraformから注入 (例: tune-snowboarding.com)
-SSM_REGION="${region}"
+SSM_REGION="ap-northeast-1"
 
 # SSM Parameter Store から値を取得
 SSM_VALUE=$(aws ssm get-parameter --name "/redirect/$ID/url" --query "Parameter.Value" --output text --region $SSM_REGION 2>/dev/null || echo "")
