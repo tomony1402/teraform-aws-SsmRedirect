@@ -11,8 +11,8 @@ Terraform を使用して、Apache リダイレクト用 EC2 を作成・管理�
 
 - **作業サーバー**: `2.56.0.205`
 - **対象ディレクトリ**:
-  - `/root/appache/auterraform/00_ssm_base` （本尊：原則放置）
-  - `/root/appache/auterraform/01_redirect_compute` （実体：操作対象）
+  - `/root/redirect/au,docomo,sbterraform/00_ssm_base` （本尊：原則放置）
+  - `/root/redirect/au,docomo,sbterraform/01_redirect_compute` （実体：操作対象）
 
 ---
 
